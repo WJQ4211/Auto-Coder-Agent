@@ -1,6 +1,9 @@
 import subprocess
 import tempfile
 import os
+import docker 
+from docker.errors import DockerException
+from requests.exceptions import ReadTimeout
 
 def excute_code_sandbox(code:str) -> dict:
     """
@@ -8,44 +11,38 @@ def excute_code_sandbox(code:str) -> dict:
     """
     # 清理可能会出现的markdown字符
     clean_code = code.replace("```python", "").replace("```", "").strip()
-    # 创建临时文件
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".py", encoding="utf-8") as f:
-        f.write(clean_code)
-        temp_file_path = f.name
-
     try:
-        result = subprocess.run(
-            ["python", temp_file_path], 
-            capture_output=True, 
-            text=True, 
-            timeout=10
+        client = docker.from_env()
+    except DockerException:
+        return {
+            "status": "error",
+            "stdout": "",
+            "stderr": "SystemError: 无法连接到Docker. 请确保Docker Desktop已启动."
+        }
+    container = None
+    try:
+        container = client.containers.run(
+            image="python:3.9-slim",
+            command=["python", "-c", clean_code],
+            detach=True,
+            mem_limit="100m",
+            network_disabled=True,
         )
-        return {
-            "status": "success" if result.returncode == 0 else "failed",
-            "stdout": result.stdout, 
-            "stderr": result.stderr
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "status": "error",
-            "stdout": "",
-            "stderr": "TimeoutExpired: Code execution exceeded 10 seconds timeout. Check for infinite loops."
-        }
+        result = container.wait(timeout=10)
+        logs = container.logs().decode("utf-8")
+        if result["StatusCode"] == 0:
+            return {"status": "success", "stdout": logs, "stderr": ""}
+        else: 
+            return {"status": "failed", "stdout": "", "stderr":logs}
+    except ReadTimeout:
+        if container:
+            container.kill()
+        return {"status": "error", "stdout": "", "stderr": "TimeoutError: 代码执行超过10s, 可能存在死循环."}
     except Exception as e:
-        return {
-            "status": "error",
-            "stdout": "",
-            "stderr": f"Exception during code execution: {str(e)}"
-        }
+        return {"status": "error", "stdout": "", "stderr": f"DockerError: {str(e)}"}
     finally:
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
-
-if __name__ == "__main__":
-    test_code_success = "print('Hello, World')"
-    test_code_error = "print(1/0)"
-    text_code_timeout = "while 1: pass"
-    
-    print(excute_code_sandbox(test_code_success))
-    print(excute_code_sandbox(test_code_error))
-    print(excute_code_sandbox(text_code_timeout))
+        if container:
+            try:
+                container.remove(force=True)
+            except:
+                pass
