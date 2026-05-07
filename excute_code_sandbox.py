@@ -1,6 +1,3 @@
-import subprocess
-import tempfile
-import os
 import docker 
 from docker.errors import DockerException
 from requests.exceptions import ReadTimeout
