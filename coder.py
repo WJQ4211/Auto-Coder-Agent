@@ -2,8 +2,11 @@ import re
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from State import GraphState
+import os
 
-deepseek_api_key = "sk-4ae5d8bf1a5841a386993268530075de" 
+
+deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
+
 llm = ChatOpenAI(
     api_key=deepseek_api_key, 
     base_url="https://api.deepseek.com", 
