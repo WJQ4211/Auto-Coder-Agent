@@ -26,19 +26,19 @@ def extract_python_code(text: str) -> str:
 
 def coder_node(state: GraphState) -> dict:
     print("Coder正在编写代码...")
-    req = state["requirement"]
+    messages = state["messages"]
+
     feedback = state.get("reviewer_feedback", "")
 
     if not feedback:
-        prompt = f"你是一个优秀的python工程师, 请根据以下要求编写代码. 只需要输出代码, 必须使用python代码块格式. \n\n要求: {req}"
+        pass
     else:
-        old_code = state.get("current_code", "")
-        prompt = f"""之前你的代码运行失败了.原始需求:{req}.错误代码:\n```python\n{old_code}\n```
-        修改意见:\n{feedback}
-        请根据意见修复代码. 只需要输出代码, 必须使用python代码块格式."""
-    response = llm.invoke([HumanMessage(content=prompt)])
+        messages = messages + [HumanMessage(content=f"之前你的代码报错了, 请修复.错误代码:\n修改意见:\n{feedback}\n请根据意见修复代码. 只需要输出代码, 必须使用python代码块格式.")]
+    
+    
+    response = llm.invoke(messages)
     print(f"[测试代码]Coder的回复:\n{response.content}")
     code = extract_python_code(response.content)
     print(f"[测试代码]Coder写的代码:\n{code}")
-    return {"current_code": code, "iterations": 1}
+    return {"current_code": code, "iterations": 1, "messages": [response]}
 
